@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台灣股市圖表</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: "Microsoft JhengHei", "PingFang TC", sans-serif; background: #0f0f23; color: #e0e0e0; min-height: 100vh; }
+        .header { background: linear-gradient(135deg, #1a1a3e, #2d1b69); padding: 20px 40px; border-bottom: 2px solid #6c3bff; }
+        .header h1 { font-size: 24px; color: #a78bfa; }
+        .header p { color: #9ca3af; margin-top: 4px; font-size: 14px; }
+        .controls { display: flex; gap: 12px; padding: 20px 40px; background: #1a1a2e; flex-wrap: wrap; align-items: center; }
+        .controls label { font-size: 14px; color: #a78bfa; font-weight: bold; }
+        .controls input, .controls select, .controls button { padding: 10px 16px; border-radius: 8px; border: 1px solid #333; background: #16213e; color: #e0e0e0; font-size: 14px; outline: none; }
+        .controls input:focus, .controls select:focus { border-color: #6c3bff; box-shadow: 0 0 0 2px rgba(108,59,255,0.3); }
+        .controls button { background: linear-gradient(135deg, #6c3bff, #a78bfa); border: none; cursor: pointer; font-weight: bold; transition: transform 0.1s; }
+        .controls button:hover { transform: scale(1.03); }
+        .controls button:active { transform: scale(0.97); }
+        .info-bar { display: flex; gap: 30px; padding: 16px 40px; background: #12122a; flex-wrap: wrap; }
+        .info-item { text-align: center; }
+        .info-item .label { font-size: 12px; color: #6b7280; }
+        .info-item .value { font-size: 20px; font-weight: bold; margin-top: 2px; }
+        .info-item .value.up { color: #f87171; }
+        .info-item .value.down { color: #34d399; }
+        .info-item .value.neutral { color: #fbbf24; }
+        .chart-container { padding: 20px 40px; flex: 1; }
+        .chart-wrapper { background: #1a1a2e; border-radius: 12px; padding: 20px; border: 1px solid #2d2d5e; }
+        .loading { text-align: center; padding: 100px; color: #6b7280; font-size: 18px; }
+        .error { text-align: center; padding: 40px; color: #f87171; font-size: 16px; }
+        .quick-btns { display: flex; gap: 6px; }
+        .quick-btns button { padding: 6px 12px; font-size: 12px; border-radius: 6px; background: #16213e; border: 1px solid #333; color: #a78bfa; cursor: pointer; transition: all 0.15s; }
+        .quick-btns button:hover, .quick-btns button.active { background: #6c3bff; color: white; border-color: #6c3bff; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>台灣股市圖表</h1>
+        <p>資料來源：Yahoo Finance</p>
+    </div>
+    <div class="controls">
+        <div>
+            <label>股票代碼</label><br>
+            <input type="text" id="symbol" value="2330.TW" placeholder="例: 2330.TW">
+        </div>
+        <div>
+            <label>時間範圍</label><br>
+            <select id="period">
+                <option value="1d">1 天</option>
+                <option value="5d">5 天</option>
+                <option value="7d">7 天</option>
+                <option value="1mo" selected>1 個月</option>
+                <option value="3mo">3 個月</option>
+                <option value="6mo">6 個月</option>
+                <option value="1y">1 年</option>
+            </select>
+        </div>
+        <div>
+            <label>快速選擇</label><br>
+            <div class="quick-btns">
+                <button onclick="setStock('2330.TW', this)">台積電</button>
+                <button onclick="setStock('2317.TW', this)">鴻海</button>
+                <button onclick="setStock('2454.TW', this)">聯發科</button>
+                <button onclick="setStock('2308.TW', this)">台達電</button>
+                <button onclick="setStock('2881.TW', this)">富邦金</button>
+                <button onclick="setStock('2882.TW', this)">國泰金</button>
+            </div>
+        </div>
+        <div style="display:flex; align-items:flex-end;">
+            <button onclick="loadData()">查詢</button>
+        </div>
+    </div>
+    <div class="info-bar" id="infoBar" style="display:none;">
+        <div class="info-item"><div class="label">股票名稱</div><div class="value" id="infoName">-</div></div>
+        <div class="info-item"><div class="label">目前價格</div><div class="value" id="infoPrice">-</div></div>
+        <div class="info-item"><div class="label">漲跌幅</div><div class="value" id="infoChange">-</div></div>
+        <div class="info-item"><div class="label">成交量</div><div class="value" id="infoVolume">-</div></div>
+        <div class="info-item"><div class="label">今日最高</div><div class="value" id="infoHigh">-</div></div>
+        <div class="info-item"><div class="label">今日最低</div><div class="value" id="infoLow">-</div></div>
+        <div class="info-item"><div class="label">52 週高</div><div class="value" id="infoYearHigh">-</div></div>
+        <div class="info-item"><div class="label">52 週低</div><div class="value" id="infoYearLow">-</div></div>
+    </div>
+    <div class="chart-container">
+        <div class="chart-wrapper">
+            <canvas id="priceChart"></canvas>
+        </div>
+        <div class="chart-wrapper" style="margin-top: 16px;">
+            <canvas id="volumeChart"></canvas>
+        </div>
+    </div>
+    <div class="loading" id="loading">請輸入股票代碼並點擊查詢</div>
+
+    <script>
+        let priceChart = null;
+        let volumeChart = null;
+
+        function setStock(symbol, btn) {
+            document.getElementById('symbol').value = symbol;
+            document.querySelectorAll('.quick-btns button').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+        }
+
+        async function loadData() {
+            const symbol = document.getElementById('symbol').value.trim().toUpperCase();
+            const period = document.getElementById('period').value;
+            if (!symbol) { alert('請輸入股票代碼'); return; }
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('loading').textContent = '載入中...';
+            document.getElementById('infoBar').style.display = 'none';
+
+            try {
+                const [quoteRes, historyRes] = await Promise.all([
+                    fetch(`/api/quote?symbol=${symbol}`),
+                    fetch(`/api/history?symbol=${symbol}&period=${period}`)
+                ]);
+
+                if (!quoteRes.ok) throw new Error('無法取得即時報價');
+                if (!historyRes.ok) throw new Error('無法取得歷史資料');
+
+                const quote = await quoteRes.json();
+                const history = await historyRes.json();
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('infoBar').style.display = 'flex';
+
+                document.getElementById('infoName').textContent = quote.name;
+                document.getElementById('infoPrice').textContent = `${quote.price} ${quote.currency}`;
+
+                const changeEl = document.getElementById('infoChange');
+                changeEl.textContent = `${quote.change > 0 ? '+' : ''}${quote.change} (${quote.change_percent})`;
+                changeEl.className = 'value ' + (quote.change > 0 ? 'up' : quote.change < 0 ? 'down' : 'neutral');
+
+                document.getElementById('infoVolume').textContent = quote.volume.toLocaleString();
+                document.getElementById('infoHigh').textContent = quote.day_high;
+                document.getElementById('infoLow').textContent = quote.day_low;
+                document.getElementById('infoYearHigh').textContent = quote.year_high;
+                document.getElementById('infoYearLow').textContent = quote.year_low;
+
+                renderCharts(history);
+            } catch (err) {
+                document.getElementById('loading').textContent = `錯誤: ${err.message}`;
+            }
+        }
+
+        function renderCharts(data) {
+            const labels = data.map(d => d.date);
+            const closes = data.map(d => d.close);
+            const highs = data.map(d => d.high);
+            const lows = data.map(d => d.low);
+            const volumes = data.map(d => d.volume);
+
+            const closesColors = closes.map((v, i) => {
+                if (i === 0) return '#a78bfa';
+                return v >= closes[i - 1] ? '#f87171' : '#34d399';
+            });
+
+            if (priceChart) priceChart.destroy();
+            if (volumeChart) volumeChart.destroy();
+
+            const priceCtx = document.getElementById('priceChart').getContext('2d');
+            priceChart = new Chart(priceCtx, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        {
+                            label: '收盤價',
+                            data: closes,
+                            borderColor: '#a78bfa',
+                            backgroundColor: 'rgba(167,139,250,0.1)',
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: data.length > 60 ? 0 : 3,
+                            pointHoverRadius: 5,
+                            borderWidth: 2,
+                        },
+                        {
+                            label: '最高價',
+                            data: highs,
+                            borderColor: 'rgba(248,113,113,0.5)',
+                            borderDash: [4, 4],
+                            tension: 0.3,
+                            pointRadius: 0,
+                            borderWidth: 1,
+                        },
+                        {
+                            label: '最低價',
+                            data: lows,
+                            borderColor: 'rgba(52,211,153,0.5)',
+                            borderDash: [4, 4],
+                            tension: 0.3,
+                            pointRadius: 0,
+                            borderWidth: 1,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { labels: { color: '#e0e0e0' } },
+                        title: { display: true, text: '股價走勢圖', color: '#e0e0e0', font: { size: 16 } }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#9ca3af', maxTicksLimit: 15 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.08)' } }
+                    },
+                    interaction: { intersect: false, mode: 'index' }
+                }
+            });
+
+            const volCtx = document.getElementById('volumeChart').getContext('2d');
+            volumeChart = new Chart(volCtx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: '成交量',
+                        data: volumes,
+                        backgroundColor: closesColors.map(c => c === '#f87171' ? 'rgba(248,113,113,0.6)' : 'rgba(52,211,153,0.6)'),
+                        borderRadius: 2,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { labels: { color: '#e0e0e0' } },
+                        title: { display: true, text: '成交量', color: '#e0e0e0', font: { size: 16 } }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#9ca3af', maxTicksLimit: 15 }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(255,255,255,0.08)' } }
+                    }
+                }
+            });
+        }
+
+        document.getElementById('symbol').addEventListener('keydown', e => { if (e.key === 'Enter') loadData(); });
+    </script>
+</body>
+</html>
