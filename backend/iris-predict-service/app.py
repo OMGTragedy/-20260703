@@ -455,6 +455,16 @@ demo.queue(default_concurrency_limit=10)
 # 1. 產生 Gradio 的 FastAPI 應用實例
 app = gr.routes.App.create_app(demo)
 
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # 2. 合併 API 路由：將 api_app 中的所有自訂 API 路由 (/predict, /train) 併入
 app.include_router(api_app.router)
 
