@@ -24,7 +24,7 @@ def load_model_state():
 
     # 載入模型與相關元數據
     model_data:dict = joblib.load(model_path)
-    #pprint(model_data)
+    pprint(model_data)
     MODEL_STATE.clear()
     MODEL_STATE.update({
             "model": model_data["model"],
